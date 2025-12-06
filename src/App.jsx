@@ -3,9 +3,8 @@ import { Send, Zap, Brain, MessageSquare, CheckCircle } from 'lucide-react';
 
 export default function LLMVisualizer() {
   const [prompt, setPrompt] = useState('');
-  const [selectedAPI, setSelectedAPI] = useState('claude');
+  const [selectedAPI, setSelectedAPI] = useState('gemini');
   const [apiKeys, setApiKeys] = useState({
-    claude: '',
     gemini: '',
     openai: ''
   });
@@ -92,9 +91,7 @@ export default function LLMVisualizer() {
       console.log(`Calling ${selectedAPI.toUpperCase()} API...`);
       let fullResponse = '';
       
-      if (selectedAPI === 'claude') {
-        fullResponse = await callClaudeAPI(prompt, currentApiKey);
-      } else if (selectedAPI === 'gemini') {
+      if (selectedAPI === 'gemini') {
         fullResponse = await callGeminiAPI(prompt, currentApiKey);
       } else if (selectedAPI === 'openai') {
         fullResponse = await callOpenAIAPI(prompt, currentApiKey);
@@ -131,49 +128,10 @@ export default function LLMVisualizer() {
     console.log("Processing complete");
   };
 
-  const callClaudeAPI = async (promptText, apiKey) => {
-    try {
-      const apiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            { role: "user", content: promptText }
-          ],
-        })
-      });
-
-      console.log("Claude API Response status:", apiResponse.status);
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        console.error("Claude API error response:", errorText);
-        throw new Error(`Claude API error: ${apiResponse.status}`);
-      }
-
-      const data = await apiResponse.json();
-      console.log("Claude API Response data:", data);
-      
-      return data.content
-        .map(item => (item.type === "text" ? item.text : ""))
-        .filter(Boolean)
-        .join("\n");
-    } catch (fetchError) {
-      console.error("Claude fetch error:", fetchError);
-      throw new Error(`Claude API: ${fetchError.message}`);
-    }
-  };
-
   const callGeminiAPI = async (promptText, apiKey) => {
     try {
-      // Using gemini-1.5-flash which is the current stable model
-      const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      // Using gemini-1.5-pro with v1beta API
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
       
       const apiResponse = await fetch(apiUrl, {
         method: "POST",
@@ -198,7 +156,7 @@ export default function LLMVisualizer() {
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text();
         console.error("Gemini API error response:", errorText);
-        throw new Error(`Gemini API error: ${apiResponse.status}`);
+        throw new Error(`Gemini API error: ${apiResponse.status} - Check if your API key is valid`);
       }
 
       const data = await apiResponse.json();
@@ -207,7 +165,10 @@ export default function LLMVisualizer() {
       return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
     } catch (fetchError) {
       console.error("Gemini fetch error:", fetchError);
-      throw new Error(`Gemini API (May be blocked by CORS): ${fetchError.message}`);
+      if (fetchError.message.includes('Failed to fetch')) {
+        throw new Error(`Network error - CORS may be blocking Gemini API. This will work when deployed to Netlify.`);
+      }
+      throw new Error(`Gemini API error: ${fetchError.message}`);
     }
   };
 
@@ -254,7 +215,7 @@ export default function LLMVisualizer() {
             LLM Processing Visualizer
           </h1>
           <p className="text-purple-200">
-            Watch how LLMs process your prompts in real-time with Claude, Gemini, or ChatGPT
+            Watch how LLMs process your prompts in real-time with Gemini or ChatGPT
           </p>
         </div>
 
@@ -263,8 +224,8 @@ export default function LLMVisualizer() {
           <div className="flex items-start gap-3">
             <div className="text-blue-400 mt-1">ℹ️</div>
             <div className="text-sm text-blue-100">
-              <strong>Note:</strong> Claude API works in this environment. Gemini and OpenAI APIs may be blocked by CORS restrictions. 
-              If you get a "Failed to fetch" error, try using Claude or download this artifact to run locally.
+              <strong>Note:</strong> Both Gemini and OpenAI APIs have CORS restrictions in this environment. 
+              If you get a "Failed to fetch" error, deploy to Netlify where both APIs will work perfectly!
             </div>
           </div>
         </div>
@@ -320,16 +281,14 @@ export default function LLMVisualizer() {
                 className="w-full bg-slate-900/50 text-white border border-purple-500/30 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                 disabled={isLoading}
               >
-                <option value="claude">Claude (Anthropic) - Works ✓</option>
-                <option value="gemini">Gemini (Google) - May be blocked</option>
-                <option value="openai">ChatGPT (OpenAI) - May be blocked</option>
+                <option value="gemini">Gemini (Google) - Free tier available</option>
+                <option value="openai">ChatGPT (OpenAI) - Pay as you go</option>
               </select>
             </div>
 
             {/* API Key Input */}
             <div className="mb-4">
               <label className="block text-purple-200 text-sm font-semibold mb-2">
-                {selectedAPI === 'claude' && 'Claude API Key'}
                 {selectedAPI === 'gemini' && 'Gemini API Key'}
                 {selectedAPI === 'openai' && 'OpenAI API Key'}
               </label>
@@ -338,15 +297,12 @@ export default function LLMVisualizer() {
                 value={apiKeys[selectedAPI]}
                 onChange={(e) => setApiKeys({...apiKeys, [selectedAPI]: e.target.value})}
                 className="w-full bg-slate-900/50 text-white border border-purple-500/30 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                placeholder={`Enter your ${selectedAPI === 'claude' ? 'Claude' : selectedAPI === 'gemini' ? 'Gemini' : 'OpenAI'} API key...`}
+                placeholder={`Enter your ${selectedAPI === 'gemini' ? 'Gemini' : 'OpenAI'} API key...`}
                 disabled={isLoading}
               />
               <p className="text-xs text-purple-300 mt-1">
-                {selectedAPI === 'claude' && (
-                  <>Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">Anthropic Console</a></>
-                )}
                 {selectedAPI === 'gemini' && (
-                  <>Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">Google AI Studio</a></>
+                  <>Get your FREE API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">Google AI Studio</a> (60 requests/min free!)</>
                 )}
                 {selectedAPI === 'openai' && (
                   <>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">OpenAI Platform</a></>
@@ -376,7 +332,7 @@ export default function LLMVisualizer() {
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all transform hover:scale-105 active:scale-95"
             >
               <Send className="w-5 h-5" />
-              {isLoading ? 'Processing...' : `Submit to ${selectedAPI === 'claude' ? 'Claude' : selectedAPI === 'gemini' ? 'Gemini' : 'ChatGPT'}`}
+              {isLoading ? 'Processing...' : `Submit to ${selectedAPI === 'gemini' ? 'Gemini' : 'ChatGPT'}`}
             </button>
           </form>
         </div>
@@ -460,7 +416,6 @@ export default function LLMVisualizer() {
               <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 shadow-xl animate-slideIn">
                 <h3 className="text-lg md:text-xl font-semibold text-white mb-3 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-green-400" />
-                  {selectedAPI === 'claude' && 'Claude Response'}
                   {selectedAPI === 'gemini' && 'Gemini Response'}
                   {selectedAPI === 'openai' && 'ChatGPT Response'}
                 </h3>
