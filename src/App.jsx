@@ -113,7 +113,7 @@ export default function LLMVisualizer() {
     try {
       // NOTE: We are using gemini-1.5-flash here. It is the most reliable free tier model.
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
