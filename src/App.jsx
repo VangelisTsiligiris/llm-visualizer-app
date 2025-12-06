@@ -1,465 +1,315 @@
-import React, { useState } from 'react';
-import { Send, Zap, Brain, MessageSquare, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Brain, 
+  Cpu, 
+  MessageSquare, 
+  Zap, 
+  ArrowRight, 
+  Activity, 
+  Layers, 
+  CheckCircle2, 
+  AlertCircle 
+} from 'lucide-react';
+
+const Card = ({ children, className = "" }) => (
+  <div className={`bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-2xl ${className}`}>
+    {children}
+  </div>
+);
 
 export default function LLMVisualizer() {
+  // --- State Management ---
+  const [apiKey, setApiKey] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [selectedAPI, setSelectedAPI] = useState('gemini');
-  const [apiKeys, setApiKeys] = useState({
-    gemini: '',
-    openai: ''
-  });
-  const [response, setResponse] = useState('');
-  const [stage, setStage] = useState('idle');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [useMockMode, setUseMockMode] = useState(false); // New feature: Mock mode
+  
+  // The 4 main stages of the LLM lifecycle
+  const [currentStage, setCurrentStage] = useState('idle'); // idle, tokenizing, embedding, reasoning, generating, complete
+  
+  // Data for visualization
   const [tokens, setTokens] = useState([]);
-  const [thinking, setThinking] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [embeddingMatrix, setEmbeddingMatrix] = useState([]);
+  const [generatedText, setGeneratedText] = useState('');
+  const [displayedText, setDisplayedText] = useState('');
+  const [error, setError] = useState(null);
 
-  const stages = [
-    { id: 'tokenization', name: 'Tokenization', icon: Zap, color: 'bg-blue-500' },
-    { id: 'embedding', name: 'Embedding', icon: Brain, color: 'bg-purple-500' },
-    { id: 'processing', name: 'Processing', icon: Brain, color: 'bg-pink-500' },
-    { id: 'generation', name: 'Generation', icon: MessageSquare, color: 'bg-green-500' },
-    { id: 'complete', name: 'Complete', icon: CheckCircle, color: 'bg-emerald-500' }
-  ];
+  // --- Animation Helpers ---
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  const getCurrentStageIndex = () => {
-    return stages.findIndex(s => s.id === stage);
-  };
-
-  const simulateTokenization = (text) => {
-    const words = text.split(/(\s+)/);
-    const tokenArray = [];
-    words.forEach((word, idx) => {
-      if (word.trim()) {
-        tokenArray.push({ id: idx, text: word, type: 'word' });
-      }
-    });
-    return tokenArray;
-  };
-
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    console.log("Button clicked! Form submitted!");
-    console.log("Selected API:", selectedAPI);
-    console.log("Prompt:", prompt);
-    
-    if (!prompt.trim()) {
-      alert("Please enter a prompt");
-      return;
-    }
-    
-    const currentApiKey = apiKeys[selectedAPI];
-    if (!currentApiKey.trim()) {
-      alert(`Please enter your ${selectedAPI.toUpperCase()} API key`);
-      return;
-    }
-    
-    if (isLoading) {
-      console.log("Already loading, skipping...");
+  // --- The Core Logic ---
+  const handleStart = async (e) => {
+    e.preventDefault();
+    if (!prompt) return;
+    if (!apiKey && !useMockMode) {
+      setError("Please enter an API Key or enable Mock Mode");
       return;
     }
 
-    console.log("Starting processing with prompt:", prompt);
-    setIsLoading(true);
-    setResponse('');
-    setThinking([]);
-    setStage('idle');
-    
+    // Reset State
+    setIsProcessing(true);
+    setCurrentStage('tokenizing');
+    setGeneratedText('');
+    setDisplayedText('');
+    setError(null);
+    setTokens([]);
+
     try {
-      // Stage 1: Tokenization
-      console.log("Stage 1: Tokenization");
-      setStage('tokenization');
-      const tokenArray = simulateTokenization(prompt);
-      console.log("Tokens:", tokenArray);
-      setTokens(tokenArray);
-      await sleep(1200);
-
-      // Stage 2: Embedding
-      console.log("Stage 2: Embedding");
-      setStage('embedding');
-      await sleep(1000);
-
-      // Stage 3: Processing
-      console.log("Stage 3: Processing");
-      setStage('processing');
-      setThinking(['Analyzing context...', 'Understanding intent...', 'Formulating response...']);
-      await sleep(800);
+      // --- STAGE 1: TOKENIZATION ---
+      // Real logic: We split by space/punctuation to simulate tokens
+      const simulatedTokens = prompt.split(/(\s+)/).filter(t => t.trim().length > 0);
       
-      // Call the selected API
-      console.log(`Calling ${selectedAPI.toUpperCase()} API...`);
-      let fullResponse = '';
-      
-      if (selectedAPI === 'gemini') {
-        fullResponse = await callGeminiAPI(prompt, currentApiKey);
-      } else if (selectedAPI === 'openai') {
-        fullResponse = await callOpenAIAPI(prompt, currentApiKey);
+      for (let i = 0; i < simulatedTokens.length; i++) {
+        setTokens(prev => [...prev, simulatedTokens[i]]);
+        await sleep(150); // Delay to visualize "reading"
       }
+      await sleep(500);
+
+      // --- STAGE 2: EMBEDDING ---
+      setCurrentStage('embedding');
+      // Create a fake 8x8 matrix to visualize vector conversion
+      const matrix = Array(64).fill(0).map(() => Math.random());
+      setEmbeddingMatrix(matrix);
+      await sleep(1500);
+
+      // --- STAGE 3: REASONING (The API Call) ---
+      setCurrentStage('reasoning');
+      let responseText = "";
+
+      if (useMockMode) {
+        // Mock Mode logic
+        await sleep(2000);
+        responseText = "This is a simulated response. Because you are in Mock Mode, I didn't actually call Google's servers, but I'm showing you how the UI would look if I did! In a real scenario, this text is generated based on your vector embeddings.";
+      } else {
+        // Real API Call
+        responseText = await callGemini(prompt, apiKey);
+      }
+
+      setGeneratedText(responseText);
       
-      console.log("Full response length:", fullResponse.length);
+      // --- STAGE 4: GENERATION (Streaming effect) ---
+      setCurrentStage('generating');
+      const responseTokens = responseText.split("");
       
-      // Stage 4: Generation
-      console.log("Stage 4: Generation");
-      setStage('generation');
-      
-      // Simulate streaming effect
-      let currentText = '';
-      for (let i = 0; i < fullResponse.length; i++) {
-        currentText += fullResponse[i];
-        setResponse(currentText);
-        if (i % 5 === 0) {
-          await sleep(20);
+      for (let i = 0; i < responseTokens.length; i++) {
+        setDisplayedText(prev => prev + responseTokens[i]);
+        // Random variance in typing speed to feel "human/AI"
+        await sleep(Math.random() * 30 + 10); 
+      }
+
+      setCurrentStage('complete');
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+      setCurrentStage('idle');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // --- API Function ---
+  const callGemini = async (userPrompt, key) => {
+    try {
+      // NOTE: We are using gemini-1.5-flash here. It is the most reliable free tier model.
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: userPrompt }] }]
+          })
         }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || `API Error: ${response.status}`);
       }
-      
-      // Stage 5: Complete
-      console.log("Stage 5: Complete");
-      await sleep(300);
-      setStage('complete');
-      
+
+      const data = await response.json();
+      return data.candidates[0].content.parts[0].text;
     } catch (error) {
-      console.error("Error occurred:", error);
-      setResponse(`Error: ${error.message}\n\nPlease check the console for more details.`);
-      setStage('complete');
-    }
-    
-    setIsLoading(false);
-    console.log("Processing complete");
-  };
-
-  const callGeminiAPI = async (promptText, apiKey) => {
-    try {
-      // Using gemini-1.5-pro with v1beta API
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
-      
-      const apiResponse = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: promptText
-                }
-              ]
-            }
-          ]
-        })
-      });
-
-      console.log("Gemini API Response status:", apiResponse.status);
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        console.error("Gemini API error response:", errorText);
-        throw new Error(`Gemini API error: ${apiResponse.status} - Check if your API key is valid`);
+      if (error.message.includes("Failed to fetch")) {
+        throw new Error("CORS Error: Localhost is blocked by Google. Please verify your API key or try deploying this app.");
       }
-
-      const data = await apiResponse.json();
-      console.log("Gemini API Response data:", data);
-      
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
-    } catch (fetchError) {
-      console.error("Gemini fetch error:", fetchError);
-      if (fetchError.message.includes('Failed to fetch')) {
-        throw new Error(`Network error - CORS may be blocking Gemini API. This will work when deployed to Netlify.`);
-      }
-      throw new Error(`Gemini API error: ${fetchError.message}`);
+      throw error;
     }
   };
 
-  const callOpenAIAPI = async (promptText, apiKey) => {
-    try {
-      const apiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages: [
-            { role: "user", content: promptText }
-          ],
-          max_tokens: 1000
-        })
-      });
-
-      console.log("OpenAI API Response status:", apiResponse.status);
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        console.error("OpenAI API error response:", errorText);
-        throw new Error(`OpenAI API error: ${apiResponse.status}`);
-      }
-
-      const data = await apiResponse.json();
-      console.log("OpenAI API Response data:", data);
-      
-      return data.choices?.[0]?.message?.content || "No response generated";
-    } catch (fetchError) {
-      console.error("OpenAI fetch error:", fetchError);
-      throw new Error(`OpenAI API (May be blocked by CORS): ${fetchError.message}`);
-    }
+  // --- Render Helpers ---
+  const getStageColor = (stageId) => {
+    const stages = ['tokenizing', 'embedding', 'reasoning', 'generating', 'complete'];
+    if (currentStage === stageId) return "text-blue-400 border-blue-500 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.5)]";
+    if (stages.indexOf(currentStage) > stages.indexOf(stageId)) return "text-green-400 border-green-500/50 opacity-50";
+    return "text-slate-600 border-slate-800 bg-slate-900";
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-            LLM Processing Visualizer
+    <div className="min-h-screen bg-[#0a0a0f] text-slate-200 p-4 md:p-8 font-sans selection:bg-blue-500/30">
+      <div className="max-w-5xl mx-auto space-y-8">
+        
+        {/* Header */}
+        <header className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center p-3 bg-blue-500/10 rounded-full mb-4 ring-1 ring-blue-500/50">
+            <Brain className="w-8 h-8 text-blue-400" />
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Neural Process Visualizer
           </h1>
-          <p className="text-purple-200">
-            Watch how LLMs process your prompts in real-time with Gemini or ChatGPT
-          </p>
-        </div>
+          <p className="text-slate-400">See inside the "Brain" of an LLM</p>
+        </header>
 
-        {/* Info Box */}
-        <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <div className="text-blue-400 mt-1">ℹ️</div>
-            <div className="text-sm text-blue-100">
-              <strong>Note:</strong> Both Gemini and OpenAI APIs have CORS restrictions in this environment. 
-              If you get a "Failed to fetch" error, deploy to Netlify where both APIs will work perfectly!
-            </div>
-          </div>
-        </div>
-
-        {/* Stage Progress Bar */}
-        <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 mb-6 shadow-xl">
-          <div className="flex items-center justify-between">
-            {stages.map((s, idx) => {
-              const StageIcon = s.icon;
-              const isPast = getCurrentStageIndex() > idx;
-              const isCurrent = getCurrentStageIndex() === idx;
-              
-              return (
-                <React.Fragment key={s.id}>
-                  <div className="flex flex-col items-center">
-                    <div 
-                      className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
-                        isPast || isCurrent ? s.color : 'bg-slate-700'
-                      } ${isCurrent ? 'scale-110 ring-4 ring-white/30 shadow-lg' : ''}`}
-                    >
-                      <StageIcon className={`w-5 h-5 md:w-6 md:h-6 ${
-                        isPast || isCurrent ? 'text-white' : 'text-slate-500'
-                      }`} />
-                    </div>
-                    <p className={`text-xs mt-2 font-medium text-center ${
-                      isPast || isCurrent ? 'text-white' : 'text-slate-500'
-                    }`}>
-                      {s.name}
-                    </p>
-                  </div>
-                  {idx < stages.length - 1 && (
-                    <div className={`h-1 flex-1 mx-1 md:mx-2 rounded transition-all duration-500 ${
-                      isPast ? s.color : 'bg-slate-700'
-                    }`} />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Input Section */}
-        <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 mb-6 shadow-xl">
-          <form onSubmit={handleSubmit}>
-            {/* API Selection */}
-            <div className="mb-4">
-              <label className="block text-purple-200 text-sm font-semibold mb-2">
-                Select LLM Provider
-              </label>
-              <select
-                value={selectedAPI}
-                onChange={(e) => setSelectedAPI(e.target.value)}
-                className="w-full bg-slate-900/50 text-white border border-purple-500/30 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                disabled={isLoading}
-              >
-                <option value="gemini">Gemini (Google) - Free tier available</option>
-                <option value="openai">ChatGPT (OpenAI) - Pay as you go</option>
-              </select>
-            </div>
-
-            {/* API Key Input */}
-            <div className="mb-4">
-              <label className="block text-purple-200 text-sm font-semibold mb-2">
-                {selectedAPI === 'gemini' && 'Gemini API Key'}
-                {selectedAPI === 'openai' && 'OpenAI API Key'}
-              </label>
-              <input
-                type="password"
-                value={apiKeys[selectedAPI]}
-                onChange={(e) => setApiKeys({...apiKeys, [selectedAPI]: e.target.value})}
-                className="w-full bg-slate-900/50 text-white border border-purple-500/30 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                placeholder={`Enter your ${selectedAPI === 'gemini' ? 'Gemini' : 'OpenAI'} API key...`}
-                disabled={isLoading}
-              />
-              <p className="text-xs text-purple-300 mt-1">
-                {selectedAPI === 'gemini' && (
-                  <>Get your FREE API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">Google AI Studio</a> (60 requests/min free!)</>
-                )}
-                {selectedAPI === 'openai' && (
-                  <>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-100">OpenAI Platform</a></>
-                )}
-              </p>
-            </div>
-            
-            {/* Prompt Input */}
-            <div className="mb-4">
-              <label className="block text-purple-200 text-sm font-semibold mb-2">
-                Enter Your Prompt
-              </label>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="w-full bg-slate-900/50 text-white border border-purple-500/30 rounded-lg p-4 h-24 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                placeholder="Ask anything... (e.g., 'Explain quantum computing in simple terms')"
-                disabled={isLoading}
-              />
-            </div>
-            
-            {/* Submit Button */}
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isLoading || !prompt.trim() || !apiKeys[selectedAPI].trim()}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all transform hover:scale-105 active:scale-95"
-            >
-              <Send className="w-5 h-5" />
-              {isLoading ? 'Processing...' : `Submit to ${selectedAPI === 'gemini' ? 'Gemini' : 'ChatGPT'}`}
-            </button>
-          </form>
-        </div>
-
-        {/* Visualization Sections */}
-        {stage !== 'idle' && (
-          <>
-            {/* Tokenization View */}
-            {(stage === 'tokenization' || getCurrentStageIndex() > 0) && tokens.length > 0 && (
-              <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 mb-6 shadow-xl animate-slideIn">
-                <h3 className="text-lg md:text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-blue-400" />
-                  Tokenization
-                </h3>
-                <p className="text-purple-200 text-sm mb-4">
-                  Breaking down your prompt into tokens
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {tokens.map((token, idx) => (
-                    <div
-                      key={token.id}
-                      className="bg-blue-500/20 border border-blue-500/50 text-blue-200 px-3 py-1 rounded-md text-sm font-mono animate-fadeIn"
-                      style={{ animationDelay: `${idx * 50}ms` }}
-                    >
-                      {token.text}
-                    </div>
-                  ))}
-                </div>
+        {/* Input Control Panel */}
+        <Card className="p-6">
+          <form onSubmit={handleStart} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Google Gemini API Key</label>
+                <input 
+                  type="password" 
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  disabled={useMockMode || isProcessing}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition disabled:opacity-50"
+                />
               </div>
-            )}
-
-            {/* Embedding View */}
-            {(stage === 'embedding' || getCurrentStageIndex() > 1) && (
-              <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 mb-6 shadow-xl animate-slideIn">
-                <h3 className="text-lg md:text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-400" />
-                  Embedding
-                </h3>
-                <p className="text-purple-200 text-sm mb-4">
-                  Converting tokens to high-dimensional vectors
-                </p>
-                <div className="grid grid-cols-8 md:grid-cols-12 gap-2">
-                  {Array.from({ length: 48 }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-gradient-to-t from-purple-500 to-purple-300 rounded animate-pulse"
-                      style={{
-                        animationDelay: `${idx * 30}ms`,
-                        height: `${Math.random() * 40 + 30}px`
-                      }}
+              <div className="flex items-end pb-1">
+                 <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 transition w-full">
+                    <input 
+                      type="checkbox" 
+                      checked={useMockMode} 
+                      onChange={(e) => setUseMockMode(e.target.checked)}
+                      className="w-5 h-5 accent-blue-500"
                     />
-                  ))}
-                </div>
+                    <span className="text-sm font-medium text-slate-300">Enable Mock Mode (No API Key needed)</span>
+                 </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Your Prompt</label>
+              <div className="relative">
+                <textarea 
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Why is the sky blue?"
+                  disabled={isProcessing}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 h-24 focus:ring-2 focus:ring-blue-500 outline-none transition resize-none"
+                />
+                <button 
+                  type="submit"
+                  disabled={isProcessing || !prompt}
+                  className="absolute bottom-3 right-3 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isProcessing ? <Activity className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {isProcessing ? 'Processing...' : 'Run Model'}
+                </button>
+              </div>
+            </div>
+            
+            {error && (
+              <div className="bg-red-900/20 border border-red-500/50 p-3 rounded-lg flex items-center gap-2 text-red-200 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                {error}
               </div>
             )}
+          </form>
+        </Card>
 
-            {/* Processing View */}
-            {(stage === 'processing' || getCurrentStageIndex() > 2) && thinking.length > 0 && (
-              <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 mb-6 shadow-xl animate-slideIn">
-                <h3 className="text-lg md:text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-pink-400" />
-                  Neural Processing
-                </h3>
-                <div className="space-y-3">
-                  {thinking.map((thought, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-3 text-pink-200 animate-fadeIn"
-                      style={{ animationDelay: `${idx * 200}ms` }}
-                    >
-                      <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" />
-                      <span>{thought}</span>
+        {/* Visualizer Pipeline */}
+        {/* Only show if we have started or are processing */}
+        {(isProcessing || currentStage !== 'idle') && (
+          <div className="space-y-6 animate-in fade-in duration-700">
+            
+            {/* Status Indicators */}
+            <div className="flex justify-between md:justify-center gap-2 md:gap-8 overflow-x-auto pb-2">
+              {[
+                { id: 'tokenizing', icon: Layers, label: 'Tokenization' },
+                { id: 'embedding', icon: Cpu, label: 'Embedding' },
+                { id: 'reasoning', icon: Brain, label: 'Reasoning' },
+                { id: 'generating', icon: MessageSquare, label: 'Generation' },
+              ].map((step, idx) => (
+                <div key={step.id} className={`flex flex-col items-center gap-2 min-w-[80px] transition-all duration-500 ${currentStage === step.id ? 'scale-110' : 'opacity-60'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${getStageColor(step.id)}`}>
+                    <step.icon className="w-5 h-5" />
+                  </div>
+                  <span className={`text-xs font-medium uppercase ${currentStage === step.id ? 'text-blue-400' : 'text-slate-600'}`}>{step.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column: Inputs & Processing */}
+              <div className="space-y-6">
+                
+                {/* Stage 1: Tokens */}
+                <Card className={`transition-all duration-500 ${currentStage === 'tokenizing' ? 'ring-2 ring-blue-500/50' : ''}`}>
+                  <div className="bg-slate-950/50 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Input Layer</span>
+                    {currentStage === 'tokenizing' && <span className="text-xs text-blue-400 animate-pulse">Tokenizing...</span>}
+                  </div>
+                  <div className="p-4 min-h-[100px] flex flex-wrap gap-2 content-start">
+                    {tokens.map((t, i) => (
+                      <span key={i} className="bg-purple-500/20 border border-purple-500/40 text-purple-200 px-2 py-1 rounded text-xs font-mono animate-in zoom-in duration-300">
+                        {t}
+                      </span>
+                    ))}
+                    {tokens.length === 0 && <span className="text-slate-600 italic text-sm">Waiting for input...</span>}
+                  </div>
+                </Card>
+
+                {/* Stage 2 & 3: Embedding & Reasoning */}
+                <Card className={`transition-all duration-500 ${(currentStage === 'embedding' || currentStage === 'reasoning') ? 'ring-2 ring-blue-500/50' : ''}`}>
+                   <div className="bg-slate-950/50 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Hidden Layers</span>
+                    {currentStage === 'reasoning' && <span className="text-xs text-pink-400 animate-pulse">Neural Activation...</span>}
+                  </div>
+                  <div className="p-4 h-[160px] relative overflow-hidden flex items-center justify-center">
+                    {/* Matrix Visualization */}
+                    <div className="grid grid-cols-8 gap-1 w-full max-w-[300px]">
+                      {embeddingMatrix.length > 0 ? embeddingMatrix.map((val, i) => (
+                        <div 
+                          key={i} 
+                          className="h-3 w-3 rounded-sm transition-all duration-700"
+                          style={{
+                            backgroundColor: currentStage === 'reasoning' 
+                              ? `rgba(236, 72, 153, ${Math.random()})` // Pink flickering during reasoning
+                              : `rgba(147, 51, 234, ${val})` // Purple during embedding
+                          }}
+                        />
+                      )) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-700 text-sm">
+                          Waiting for embeddings...
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                </Card>
               </div>
-            )}
 
-            {/* Output View */}
-            {response && (
-              <div className="bg-slate-800/80 backdrop-blur rounded-lg p-4 md:p-6 shadow-xl animate-slideIn">
-                <h3 className="text-lg md:text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-green-400" />
-                  {selectedAPI === 'gemini' && 'Gemini Response'}
-                  {selectedAPI === 'openai' && 'ChatGPT Response'}
-                </h3>
-                <div className="bg-slate-900/50 rounded-lg p-4 text-green-100 whitespace-pre-wrap leading-relaxed">
-                  {response}
-                </div>
+              {/* Right Column: Output */}
+              <div className="h-full">
+                <Card className={`h-full min-h-[300px] flex flex-col transition-all duration-500 ${currentStage === 'generating' ? 'ring-2 ring-green-500/50' : ''}`}>
+                  <div className="bg-slate-950/50 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Output Layer</span>
+                    {currentStage === 'generating' && <span className="text-xs text-green-400 animate-pulse">Streaming...</span>}
+                    {currentStage === 'complete' && <span className="text-xs text-green-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Complete</span>}
+                  </div>
+                  <div className="p-6 flex-grow font-mono text-sm leading-relaxed text-slate-300">
+                    {displayedText}
+                    {currentStage === 'generating' && <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse"/>}
+                    {!displayedText && <span className="text-slate-700 italic">Output will appear here...</span>}
+                  </div>
+                </Card>
               </div>
-            )}
-          </>
+            </div>
+
+          </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.5s ease-out forwards;
-          opacity: 0;
-        }
-        
-        .animate-slideIn {
-          animation: slideIn 0.6s ease-out forwards;
-        }
-      `}</style>
     </div>
   );
 }
