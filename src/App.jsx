@@ -131,7 +131,7 @@ export default function LLMVisualizer() {
   const callGeminiAPI = async (promptText, apiKey) => {
     try {
       // Using gemini-1.5-pro with v1beta API
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
       
       const apiResponse = await fetch(apiUrl, {
         method: "POST",
